@@ -74,7 +74,7 @@ class DeleteResponse(BaseModel):
 # ========== API 端点 ==========
 @router.get("", response_model=WorkspaceListResponse)
 async def list_workspaces():
-    """列出所有工作区"""
+    """列出所有工作区（自动检测状态）"""
     manager = get_manager()
     workspaces = manager.list_workspaces()
     return WorkspaceListResponse(workspaces=workspaces)

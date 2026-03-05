@@ -1,7 +1,8 @@
 # CoPaw APP Manager - 开发任务清单
 
-> 文档版本：v0.1  
-> 创建日期：2026-03-02  
+> 文档版本：v0.2
+> 创建日期：2026-03-02
+> 更新日期：2026-03-03
 > 依据：docs/copaw_app_manager_design.md
 
 ---
@@ -14,63 +15,82 @@
 |---------|----------|------|--------|
 | T001 | 创建 `src/copaw_app_manager/` 目录结构 | - | P0 |
 | T002 | 创建 `__init__.py`, `__main__.py` 入口文件 | T001 | P0 |
-| T003 | 配置 pyproject.toml 添加新包（cop | - | Paw_app_manager）0 |
-| T004 | 添加依赖：psutil, jinja2, requests | - | P0 |
+| T003 | 创建 `packages/copaw-app-manager/` 独立包目录 | - | P0 |
+| T004 | 配置 `packages/copaw-app-manager/pyproject.toml` | T003 | P0 |
 
 **目录结构：**
 ```
-src/copaw_app_manager/
-├── __init__.py
-├── __main__.py
-├── cli/
+My-CoPaw/
+├── packages/copaw-app-manager/    # 独立包目录
+│   ├── pyproject.toml            # 独立的包配置
+│   ├── README.md                 # 包说明
+│   └── INSTALL.md                # 安装指南
+├── src/copaw_app_manager/        # 源代码（两个包共用）
 │   ├── __init__.py
-│   └── main.py
-├── app/
-│   ├── __init__.py
-│   └── _app.py
-├── models/
-│   ├── __init__.py
-│   └── workspace.py
-├── service/
-│   ├── __init__.py
-│   └── manager.py
-├── routers/
-│   ├── __init__.py
-│   ├── workspaces.py
-│   └── app_ctrl.py
-├── static/
-│   ├── style.css
-│   └── app.js
-└── templates/
-    └── index.html
+│   ├── __main__.py
+│   ├── cli/
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── app/
+│   │   ├── __init__.py
+│   │   └── _app.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── workspace.py
+│   ├── service/
+│   │   ├── __init__.py
+│   │   └── manager.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── workspaces.py
+│   │   └── app_ctrl.py
+│   ├── static/
+│   │   ├── style.css
+│   │   └── app.js
+│   └── templates/
+│       └── index.html
 ```
 
 ### 1.2 安装配置（重要！）
 
 | 任务 ID | 任务描述 | 依赖 | 优先级 |
 |---------|----------|------|--------|
-| T005 | 配置 `[project.optional-dependencies]` 添加 `app-manager` 依赖 | T004 | P0 |
-| T006 | 配置 `[project.entry-points."console_scripts"]` 注册 `copaw-app-manager` 命令 | T005 | P0 |
-| T007 | 验证 `pip install copaw[app-manager]` 可以正常安装并注册命令 | T006 | P0 |
+| T005 | 配置 `pyproject.toml` 添加独立包依赖 | T004 | P0 |
+| T006 | 配置 `[project.scripts]` 注册 `copaw-app-manager` 命令 | T005 | P0 |
+| T007 | 验证 `pip install copaw-app-manager` 可以正常安装 | T006 | P0 |
 | T007a | 验证 `copaw-app-manager start` 可以正常启动 | T007 | P0 |
 | T007b | 验证安装后不影响系统原有的 `copaw` 命令 | T007 | P0 |
 
-**pyproject.toml 配置示例：**
+**packages/copaw-app-manager/pyproject.toml 配置示例：**
 ```toml
-[project.optional-dependencies]
-app-manager = [
+[project]
+name = "copaw-app-manager"
+version = "0.1.0"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.40.0",
+    "click>=8.0.0",
     "psutil>=5.9.0",
     "jinja2>=3.0.0",
     "requests>=2.28.0",
+    "pydantic>=2.0.0",
 ]
 
-[project.entry-points."console_scripts"]
+[tool.setuptools]
+package-dir = { "" = "../../src" }
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["copaw_app_manager*"]
+
+[project.scripts]
 copaw-app-manager = "copaw_app_manager.cli.main:app"
 ```
 
 **注意：**
-- 只添加 `app-manager` 依赖，不要修改原有的 `dependencies`
-- 确保 `copaw_app_manager` 的代码不依赖 `copaw` 核心代码（完全独立）
+- `copaw-app-manager` 是独立的包，不依赖 `copaw` 主包
+- `copaw` 是可选依赖，只在需要创建/启动 APP 时才需要
+- 确保 `copaw_app_manager` 的代码可以独立运行（不导入 `copaw` 模块）
 
 ---
 
@@ -113,13 +133,15 @@ copaw-app-manager = "copaw_app_manager.cli.main:app"
 |---------|----------|------|--------|
 | T030 | 实现 `create_workspace()` 创建 APP | T022 | P0 |
 | T030a | 自动创建工作目录 | T030 | P0 |
-| T030b | 调用 `copaw init` 初始化工作目录 | T030a | P0 |
+| T030b | 调用 `copaw init` 初始化工作目录（如果已安装） | T030a | P0 |
 | T030c | 处理初始化失败（清理目录、抛异常） | T030b | P0 |
+| T030d | 支持未安装 CoPaw 时创建空工作区 | T030 | P0 |
 | T031 | 实现 `start_workspace()` 启动 APP | T030 | P0 |
 | T031a | 启动前检查：工作目录存在、config.json 存在 | T031 | P0 |
-| T031b | 清理旧进程（PID 存在的情况） | T031a | P0 |
-| T031c | 设置环境变量，通过 subprocess 启动 | T031b | P0 |
-| T031d | 记录 PID，更新状态，返回 URL | T031c | P0 |
+| T031b | 检查 CoPaw 是否安装 | T031a | P0 |
+| T031c | 清理旧进程（PID 存在的情况） | T031b | P0 |
+| T031d | 设置环境变量，通过 subprocess 启动 | T031c | P0 |
+| T031e | 记录 PID，更新状态，返回 URL | T031d | P0 |
 | T032 | 实现 `stop_workspace()` 停止 APP | T031 | P0 |
 | T032a | 通过 PID 终止进程 | T032 | P0 |
 | T032b | 处理超时强制 kill | T032a | P0 |
@@ -160,7 +182,7 @@ copaw-app-manager = "copaw_app_manager.cli.main:app"
 | 任务 ID | 任务描述 | 依赖 | 优先级 |
 |---------|----------|------|--------|
 | T060 | POST `/api/workspaces/{id}/start` - 启动 APP | T031 | P0 |
-| T060a | 返回 URL供前端跳转 | T060 | P0 |
+| T060a | 返回 URL 供前端跳转 | T060 | P0 |
 | T061 | POST `/api/workspaces/{id}/stop` - 停止 APP | T032 | P0 |
 | T062 | GET `/api/workspaces/{id}/health` - 健康检测 | T040 | P1 |
 | T063 | GET `/api/workspaces/health` - 批量健康检测 | T041 | P1 |
@@ -275,6 +297,7 @@ Phase 5: 测试与优化 (T110-T115)
 3. **进程清理** - 启动前检查并清理旧进程，避免僵尸进程
 4. **错误处理** - 创建 APP 失败时清理已创建的目录
 5. **socket 检测端口** - 不要用 `connect_ex` 返回值直接判断，用 `== 0`
+6. **独立安装** - `copaw-app-manager` 是独立包，不强制依赖 `copaw`
 
 ---
 

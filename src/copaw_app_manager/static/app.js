@@ -5,6 +5,20 @@
 // API 基础路径
 const API_BASE = '/api/workspaces';
 
+// 获取并显示版本号
+async function loadVersion() {
+    try {
+        const response = await fetch('/openapi.json');
+        const data = await response.json();
+        const version = data.info?.version || '';
+        if (version) {
+            document.getElementById('app-version').textContent = ` | v${version}`;
+        }
+    } catch (e) {
+        console.error('获取版本失败:', e);
+    }
+}
+
 // 工具函数
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -12,6 +26,17 @@ function showToast(message, type = 'success') {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+}
+
+// 复制路径到剪贴板
+async function copyPath(element) {
+    try {
+        const path = element.getAttribute('data-path');
+        await navigator.clipboard.writeText(path);
+        showToast('路径已复制到剪贴板');
+    } catch (error) {
+        showToast('复制失败', 'error');
+    }
 }
 
 function formatPort(port) {
@@ -110,18 +135,20 @@ function renderWorkspaces(workspaces) {
                         <div class="info-row">
                             <span>📌 端口：${formatPort(ws.meta.port)}</span>
                             <span>${getHealthBadge(ws.runtime.is_healthy, ws.runtime.status)}</span>
+                            ${ws.meta.auto_start ? '<span class="auto-start-badge">🚀 自启动</span>' : ''}
                         </div>
                         <div class="info-row">
-                            <span>📁 ${formatPath(ws.meta.working_dir)}</span>
+                            <span class="path-cell" data-path="${ws.meta.working_dir}" onclick="copyPath(this)" title="点击复制路径">📁 ${formatPath(ws.meta.working_dir)}</span>
                         </div>
                     </div>
                     <div class="card-footer">
                         ${ws.runtime.status === 'running'
-                            ? `<button class="btn btn-danger btn-sm" onclick="stopWorkspace('${ws.meta.id}')">⏹️ 停止</button>`
-                            : `<button class="btn btn-success btn-sm" onclick="startWorkspace('${ws.meta.id}')">▶️ 启动</button>`
+                            ? `<button class="btn btn-primary btn-sm" onclick="window.open('http://127.0.0.1:${ws.meta.port}', '_blank')">🔗 访问</button>
+                               <button class="btn btn-danger btn-sm" onclick="stopWorkspace('${ws.meta.id}')">⏹️ 停止</button>`
+                            : `<button class="btn btn-success btn-sm" onclick="startWorkspace('${ws.meta.id}')">▶️ 启动</button>
+                               <button class="btn btn-secondary btn-sm" onclick="editWorkspace('${ws.meta.id}')">✏️ 编辑</button>
+                               <button class="btn btn-danger btn-sm" onclick="deleteWorkspace('${ws.meta.id}', '${escapeHtml(ws.meta.name)}')">🗑️ 删除</button>`
                         }
-                        <button class="btn btn-secondary btn-sm" onclick="editWorkspace('${ws.meta.id}')">✏️ 编辑</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteWorkspace('${ws.meta.id}', '${escapeHtml(ws.meta.name)}')">🗑️ 删除</button>
                     </div>
                 </div>
             `).join('')}
@@ -175,13 +202,10 @@ async function startWorkspace(id) {
 
         const data = await response.json();
 
-        // 新标签页打开 URL
-        window.open(data.url, '_blank');
+        // 轮询健康状态，健康后再打开窗口（避免浏览器拦截弹出窗口）
+        pollHealth(id, data.url);
 
-        // 轮询健康状态
-        pollHealth(id);
-
-        showToast('启动成功，正在打开...');
+        showToast('启动成功，等待APP就绪...');
         loadWorkspaces();
     } catch (error) {
         showToast(error.message, 'error');
@@ -189,7 +213,7 @@ async function startWorkspace(id) {
 }
 
 // 轮询健康状态
-async function pollHealth(id, maxAttempts = 30) {
+async function pollHealth(id, url, maxAttempts = 30) {
     let attempts = 0;
 
     const check = async () => {
@@ -204,6 +228,8 @@ async function pollHealth(id, maxAttempts = 30) {
             const data = await response.json();
 
             if (data.is_healthy === true) {
+                // 健康检测成功，打开新窗口
+                window.open(url, '_blank');
                 showToast('APP 已就绪');
                 return;
             }
@@ -322,6 +348,9 @@ function showEditModal(workspace) {
 
     document.body.appendChild(modal);
 
+    // 显示弹窗
+    modal.style.display = 'flex';
+
     // 表单提交
     document.getElementById('edit-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -338,7 +367,7 @@ function showEditModal(workspace) {
         }
 
         try {
-            const response = await fetch(`${API_BASE}/${workspace.id}`, {
+            const response = await fetch(`${API_BASE}/${workspace.meta.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -416,7 +445,10 @@ function escapeHtml(text) {
 }
 
 // 页面加载
-document.addEventListener('DOMContentLoaded', loadWorkspaces);
+document.addEventListener('DOMContentLoaded', () => {
+    loadWorkspaces();
+    loadVersion();
+});
 
 // 定时刷新（每 10 秒）
 setInterval(loadWorkspaces, 10000);

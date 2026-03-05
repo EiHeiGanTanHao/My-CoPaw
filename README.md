@@ -86,6 +86,29 @@ Then open **http://127.0.0.1:8088/** in your browser for the Console (chat with 
 
 ![Console](https://img.alicdn.com/imgextra/i4/O1CN01iuGyNc1mNwsUU5NQI_!!6000000004943-2-tps-3822-2070.png)
 
+### CoPaw APP Manager (multi-instance management)
+
+> **New in 0.1.0**: Run and manage multiple CoPaw APP instances simultaneously.
+
+**Install standalone (management only):**
+
+```bash
+pip install copaw-app-manager
+copaw-app-manager start
+```
+
+**Full installation (with CoPaw support):**
+
+```bash
+pip install copaw-app-manager copaw
+copaw-app-manager create --name assistant-1
+copaw-app-manager start-app assistant-1
+```
+
+Access the web interface at **http://127.0.0.1:8000** to manage all your CoPaw APPs.
+
+See [packages/copaw-app-manager/INSTALL.md](packages/copaw-app-manager/INSTALL.md) for details.
+
 ### One-line install (beta, continuously improving)
 
 No Python required — the installer handles everything:

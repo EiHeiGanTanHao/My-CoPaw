@@ -5,14 +5,18 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+import copaw_app_manager
 
 from copaw_app_manager.routers import workspaces
+
+# 获取版本号
+APP_VERSION = copaw_app_manager.__version__ if hasattr(copaw_app_manager, '__version__') else "0.1.0"
 
 # 创建应用
 app = FastAPI(
     title="CoPaw APP Manager",
     description="多工作区管理服务",
-    version="0.1.0"
+    version=APP_VERSION
 )
 
 # 获取静态文件和模板目录

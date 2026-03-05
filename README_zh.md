@@ -86,6 +86,29 @@ copaw app
 
 ![Console](https://img.alicdn.com/imgextra/i4/O1CN01Q0kWkE1WlHCNXeUlb_!!6000000002828-2-tps-3822-2070.png)
 
+### CoPaw APP Manager（多实例管理）
+
+> **0.1.0 新增**：同时运行和管理多个 CoPaw APP 实例。
+
+**独立安装（仅管理）：**
+
+```bash
+pip install copaw-app-manager
+copaw-app-manager start
+```
+
+**完整安装（含 CoPaw 支持）：**
+
+```bash
+pip install copaw-app-manager copaw
+copaw-app-manager create --name assistant-1
+copaw-app-manager start-app assistant-1
+```
+
+访问 **http://127.0.0.1:8000** 使用 Web 界面管理所有 CoPaw APP。
+
+详情请见 [packages/copaw-app-manager/INSTALL.md](packages/copaw-app-manager/INSTALL.md)。
+
 ### 一键安装（beta，持续完善中）
 
 无需预装 Python — 安装脚本自动处理一切：

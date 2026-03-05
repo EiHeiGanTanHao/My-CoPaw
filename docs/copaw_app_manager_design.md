@@ -857,76 +857,115 @@ copaw_app_manager start --stop-apps  # 启动时带 --stop-apps
 
 ### 7.1 安装方式
 
-#### 方式 A：作为 Copaw 的一部分安装
+#### 方式 A：独立安装（推荐）
+
+`copaw-app-manager` 是一个**独立的包**，可以单独安装和使用：
 
 ```bash
-# 一次性安装 copaw 核心 + app-manager
-pip install copaw[app-manager]
+# 只安装 APP Manager（不安装 CoPaw）
+pip install copaw-app-manager
 
-# 或者
-pip install -e ".[app-manager]"  # 开发模式
+# 验证安装
+copaw-app-manager --version
+copaw-app-manager start
 ```
 
-安装后会自动注册两个命令：
-- `copaw` - CoPaw 核心命令
-- `copaw-app-manager` - APP Manager 命令
+**适用场景：**
+- 只需要管理界面，不需要运行 CoPaw APP
+- 已经有 CoPaw 实例在运行
+- 想要轻量级安装
 
-#### 方式 B：只安装 APP Manager（推荐）
+**注意：** 如果未安装 CoPaw，创建/启动 APP 时会提示需要先安装 CoPaw。
 
-如果你已经有系统安装的 copaw，只想单独使用 app-manager：
+#### 方式 B：完整安装（含 CoPaw 支持）
+
+如果需要创建和启动 CoPaw APP 实例：
 
 ```bash
-# 只安装 app-manager（不会覆盖系统 copaw）
-pip install copaw[app-manager]
+# 先安装 Manager
+pip install copaw-app-manager
 
-# 或者从源码安装
-pip install -e ".[app-manager]"
+# 再安装 CoPaw
+pip install copaw
 ```
 
-#### 方式 C：不安装直接运行（测试用）
+或者从源码安装：
 
 ```bash
-# 直接用 python -m 运行
+# 从源码安装完整版本
+cd My-CoPaw
+pip install -e .              # 安装 CoPaw
+pip install -e packages/copaw-app-manager  # 安装 Manager
+```
+
+#### 方式 C：开发模式
+
+```bash
+# 安装 Manager 开发版本
+pip install -e packages/copaw-app-manager[dev]
+
+# 直接运行（无需安装）
 python -m copaw_app_manager start
-
-# 或者在项目目录下
-cd F:\Workspace\AI\projects\My-CoPaw
-python -m copaw_app_manager start
 ```
 
-### 7.2 pyproject.toml 配置
+### 7.2 包结构说明
+
+```
+My-CoPaw/
+├── packages/copaw-app-manager/   # 独立的包目录
+│   ├── pyproject.toml           # 独立的包配置
+│   ├── README.md                # 包说明
+│   └── INSTALL.md               # 安装指南
+└── src/copaw_app_manager/       # 源代码（两个包共用）
+```
+
+**关键点：**
+- `copaw-app-manager` 是独立的 PyPI 包
+- 源代码在 `src/copaw_app_manager/`，与主项目共用
+- 通过 `package-dir` 配置指向源码目录
+
+### 7.3 pyproject.toml 配置
+
+#### 主项目 (pyproject.toml)
 
 ```toml
 [project]
 name = "copaw"
-# ... 其他配置 ...
+# ... CoPaw 配置 ...
 
-[project.scripts]
-copaw = "copaw.cli.main:cli"
+[tool.uv]
+dev-dependencies = [...]
 
-# APP Manager 依赖（通过 optional-dependencies 控制安装）
-[project.optional-dependencies]
-app-manager = [
+# 不再包含 copaw-app-manager 作为子包
+```
+
+#### APP Manager (packages/copaw-app-manager/pyproject.toml)
+
+```toml
+[project]
+name = "copaw-app-manager"
+version = "0.1.0"
+description = "CoPaw APP Manager - 多工作区管理服务"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.40.0",
+    "click>=8.0.0",
     "psutil>=5.9.0",
     "jinja2>=3.0.0",
     "requests>=2.28.0",
+    "pydantic>=2.0.0",
 ]
 
-# 独立注册 app-manager 命令
-[project.entry-points."console_scripts"]
+[tool.setuptools]
+# 指向共用的源代码目录
+package-dir = { "" = "../../src" }
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["copaw_app_manager*"]
+
+[project.scripts]
 copaw-app-manager = "copaw_app_manager.cli.main:app"
-```
-
-### 7.3 独立运行脚本（可选）
-
-如果不想通过 pip 安装，也可以使用项目提供的脚本：
-
-```bash
-# Windows
-scripts\copaw-app-manager.bat start
-
-# Linux/Mac
-./scripts/copaw-app-manager start
 ```
 
 ### 7.4 工作目录隔离
@@ -937,7 +976,14 @@ scripts\copaw-app-manager.bat start
 | 独立安装 copaw | `~/.copaw` (或自定义) | `~/.copaw_app_manager` |
 | app-manager | - | `~/.copaw_app_manager` |
 
-**注意**：APP Manager 创建的 APP 工作目录默认在 `{COPAW_APP_MANAGER_DIR}/apps/{app_id}/`，与系统 copaw 完全隔离，不会相互影响。
+**注意：** APP Manager 创建的 APP 工作目录默认在 `{COPAW_APP_MANAGER_DIR}/apps/{app_id}/`，与系统 copaw 完全隔离，不会相互影响。
+
+### 7.5 环境变量
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `COPAW_APP_MANAGER_DIR` | `~/.copaw_app_manager` | Manager 元数据存放目录 |
+| `COPAW_WORKING_DIR` | - | CoPaw 工作目录（由 Manager 自动设置） |
 
 ---
 
