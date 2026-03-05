@@ -186,15 +186,23 @@ class ChannelManager:
                         process,
                         ch_cfg,
                         on_reply_sent=on_last_dispatch,
+                        show_tool_details=show_tool_details,
+                        filter_tool_messages=False,
                     ),
                 )
             else:
+                filter_tool_messages = getattr(
+                    ch_cfg,
+                    "filter_tool_messages",
+                    False,
+                )
                 channels.append(
                     ch_cls.from_config(
                         process,
                         ch_cfg,
                         on_reply_sent=on_last_dispatch,
                         show_tool_details=show_tool_details,
+                        filter_tool_messages=filter_tool_messages,
                     ),
                 )
         return cls(channels)
@@ -335,7 +343,16 @@ class ChannelManager:
         for task in self._consumer_tasks:
             task.cancel()
         if self._consumer_tasks:
-            await asyncio.gather(*self._consumer_tasks, return_exceptions=True)
+            _, pending = await asyncio.wait(
+                self._consumer_tasks,
+                timeout=5.0,
+                return_when=asyncio.ALL_COMPLETED,
+            )
+            if pending:
+                logger.warning(
+                    "stop_all: %s consumer task(s) still pending after 5s",
+                    len(pending),
+                )
         self._consumer_tasks.clear()
         self._queues.clear()
         async with self._lock:

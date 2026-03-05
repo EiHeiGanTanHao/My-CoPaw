@@ -222,11 +222,13 @@ class TelegramChannel(BaseChannel):
         show_tool_details: bool = True,
         media_dir: str = "",
         show_typing: bool = True,
+        filter_tool_messages: bool = False,
     ):
         super().__init__(
             process,
             on_reply_sent=on_reply_sent,
             show_tool_details=show_tool_details,
+            filter_tool_messages=filter_tool_messages,
         )
         self.enabled = enabled
         self._bot_token = bot_token
@@ -237,6 +239,7 @@ class TelegramChannel(BaseChannel):
             Path(media_dir).expanduser() if media_dir else _DEFAULT_MEDIA_DIR
         )
         self._show_typing = show_typing
+        self._typing_tasks: dict[str, asyncio.Task] = {}
         self._task: Optional[asyncio.Task] = None
         self._application = None
         if self.enabled and self._bot_token:
@@ -317,6 +320,7 @@ class TelegramChannel(BaseChannel):
                 "meta": meta,
             }
             if self._enqueue is not None:
+                self._start_typing(chat_id)
                 self._enqueue(native)
             else:
                 logger.warning("telegram: _enqueue not set, message dropped")
@@ -350,6 +354,7 @@ class TelegramChannel(BaseChannel):
         config: Union[TelegramChannelConfig, dict],
         on_reply_sent: OnReplySent = None,
         show_tool_details: bool = True,
+        filter_tool_messages: bool = False,
     ) -> "TelegramChannel":
         channel_show_typing = None
         if isinstance(config, dict):
@@ -368,6 +373,7 @@ class TelegramChannel(BaseChannel):
                 bot_prefix=bot_prefix_raw.strip() if bot_prefix_raw else "",
                 on_reply_sent=on_reply_sent,
                 show_tool_details=show_tool_details,
+                filter_tool_messages=filter_tool_messages,
                 show_typing=channel_show_typing
                 if channel_show_typing is not None
                 else True,
@@ -381,6 +387,7 @@ class TelegramChannel(BaseChannel):
             bot_prefix=config.bot_prefix or "",
             on_reply_sent=on_reply_sent,
             show_tool_details=show_tool_details,
+            filter_tool_messages=filter_tool_messages,
             show_typing=channel_show_typing
             if channel_show_typing is not None
             else True,
@@ -427,6 +434,30 @@ class TelegramChannel(BaseChannel):
                 chat_id,
             )
 
+    def _start_typing(self, chat_id: str) -> None:
+        """Start the typing indicator loop for a chat."""
+        if not self._show_typing:
+            return
+        self._stop_typing(chat_id)
+        self._typing_tasks[chat_id] = asyncio.create_task(
+            self._typing_loop(chat_id),
+        )
+
+    def _stop_typing(self, chat_id: str) -> None:
+        """Stop the typing indicator for a chat."""
+        task = self._typing_tasks.pop(chat_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    async def _typing_loop(self, chat_id: str) -> None:
+        """Repeatedly send 'typing' action every 4s until cancelled."""
+        try:
+            while self._application:
+                await self._send_chat_action(chat_id, "typing")
+                await asyncio.sleep(4)
+        except asyncio.CancelledError:
+            pass
+
     async def send(
         self,
         to_handle: str,
@@ -445,8 +476,7 @@ class TelegramChannel(BaseChannel):
         bot = self._application.bot
         if not bot:
             return
-        if self._show_typing:
-            asyncio.create_task(self._send_chat_action(chat_id, "typing"))
+        self._stop_typing(chat_id)
         chunks = self._chunk_text(text)
         for chunk in chunks:
             try:
@@ -474,6 +504,7 @@ class TelegramChannel(BaseChannel):
         bot = self._application.bot
         if not bot:
             return
+        self._stop_typing(chat_id)
 
         part_type = getattr(part, "type", None)
         try:
@@ -593,6 +624,8 @@ class TelegramChannel(BaseChannel):
     async def stop(self) -> None:
         if not self.enabled:
             return
+        for cid in list(self._typing_tasks):
+            self._stop_typing(cid)
         if self._task:
             self._task.cancel()
             try:
